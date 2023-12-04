@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+
+<html>
+    <head>
+        <link rel="stylesheet" href="Neural.css">
+    </head>
+    <body>
+        <input type="text" id="baseAi" placeholder="Enter Ai JSON" style="margin-left: 1010px;">
+        <button onclick="updateAi()">Submit</button>
+
+        <div id="enemy"></div>
+        
+        <div class="walls" style="left: 0px; top: 0px ; width: 1000px; height: 10px;"></div>
+        <div class="walls" style="left: 0px; top: 0px; width: 10px; height: 1000px;"></div>
+        <div class="walls" style="left: 0px; top: 990px; width: 1000px; height: 10px;"></div>
+        <div class="walls" style="left: 990px; top: 0px; width: 10px; height: 1000px;"></div>
+        <div class="walls" style="left: 280px; top: 480px; width: 250px; height: 60px;"></div>
+        <div class="walls" style="left: 280px; top: 880px; width: 500px; height: 120px;"></div>
+        <div class="walls" style="left: 180px; top: 0px; width: 500px; height: 160px;"></div>
+        <div class="walls" style="left: 780px; top: 330px; width: 10px; height: 300px;"></div>
+
+        <div id="cleaned">
+
+        </div>
+    </body>
+    <footer>
+        <script src="Neural.js"></script>
+    </footer>
+</html>

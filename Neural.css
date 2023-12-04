@@ -1,0 +1,72 @@
+
+
+body {
+    padding: 0px;
+}
+
+.network {
+    width: 40px;
+    height: 40px;
+    position: absolute;
+    background-image: url(boomba.png);
+    background-size: 40px 40px;
+    border-radius: 100%;
+    z-index: 2;
+}
+.target {
+    width: 40px;
+    height: 40px;
+    position: absolute;
+    background-color: #ff000055;
+    background-size: 40px 40px;
+    border-radius: 100%;
+    z-index: 1;
+    opacity: 20%;
+}
+
+body {
+    background-color: lightblue;
+}
+
+#velocity {
+    margin: auto;
+    text-align: center;
+    color: whitesmoke;
+    font-size: 200px;
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+}
+
+.trail {
+    animation: fade 0.1s;
+    opacity: 0;
+    border-radius: 100%;
+}
+
+#best {
+    margin: auto;
+    text-align: center;
+    color: rgb(100, 132, 169);
+    font-size: 100px;
+    font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
+}
+
+.walls {
+    background-color: black;
+    border-width: 0;
+    position: absolute;
+    margin: 0;
+}
+
+.clean {
+    width: 10px;
+    height: 10px;
+    background-color: rgb(255, 255, 0);
+    opacity: 50%;
+}
+
+@keyframes fade {
+    0% {opacity: 100; background-color: rgb(37, 37, 255);}
+    25% {opacity: 50; background-color: rgb(255, 50, 50);}
+    50% {opacity: 50; background-color: orange;}
+    100% {opacity: 0; background-color: rgb(255, 213, 0);}
+}
