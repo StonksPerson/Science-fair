@@ -79,6 +79,7 @@ function updateAi(){
     bestAI.network.color = bestColor;
     networkData = [bestAI];
     bestAI.reset()
+    genDiv.innerHTML = "Generation "+String(bestAI.network.gen);
 }
 
 function createNetwork (baseNetwork) {
