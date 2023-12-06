@@ -14,14 +14,14 @@ body {
     z-index: 2;
 }
 .target {
-    width: 40px;
-    height: 40px;
+    width: 5px;
+    height: 5px;
     position: absolute;
     background-color: #ff000055;
-    background-size: 40px 40px;
+    background-size: 5px 5px;
     border-radius: 100%;
     z-index: 1;
-    opacity: 20%;
+    opacity: 30%;
 }
 
 body {

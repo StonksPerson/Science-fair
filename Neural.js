@@ -1,7 +1,13 @@
+var showTrails = false;
 const cleanRes = 100;
 var bestScore = 0;
-const bulkTrain = 5;
+const tpsDiv = document.getElementById("tps");
+const genDiv = document.getElementById("gen");
+const bulkTrain = 30;
 const sensorDist = 200;
+const wallRayCount = 8;
+const cleanRayCount = 8;
+const fov = Math.PI / 2;
 const roomWidth = 1000;
 const roomHeight = 1000;
 const cellSize = 1000 / cleanRes;
@@ -17,22 +23,30 @@ const enemy = document.getElementById("enemy");
 // var networkData = {x: 0, y: 0, rot: 0, v: 0};
 var time = Date.now();
 var startTime = Date.now();
-const maxRunTime = 1000000000000;
-const minRunTime = 3000; // about 100 ticks per second
-const maxUncleanTicks = 500;
+const maxRunTime = 30000;
+const minRunTime = 0; // about 100 ticks per second
+const maxUncleanTicks = 100;
+const trainingRate = .25;
 var uncleanTicks = 0;
 var ticks = 0;
-const input_n = 4;
+const input_n = wallRayCount + cleanRayCount;
 const output_n = 2;
-const n_rows = 4;
-const n_colums = 2;
+const n_rows = 8;
+const n_colums = 3;
 var currentNeuron = [];
 const size = 20;
 const d_size = Math.sqrt((2 * (size * size)));
-const max_speed = 2;
-const max_turn = 0.1;
+const max_speed = 4;
+const max_turn = 0.2;
 started = true;
 var bestColor = "red";
+var colors = [
+    "blue",
+    "orange",
+    "yellow",
+    "purple",
+    "green"
+];
 
 for(var i = 0; i < walls.length; i++){
     var rect = walls[i].getBoundingClientRect()
@@ -41,12 +55,13 @@ for(var i = 0; i < walls.length; i++){
 
 genCoord()
 var savedNetwork = localStorage.getItem("best");
-var bestAI = savedNetwork === null ? createNetwork(): createNetwork(JSON.parse(savedNetwork));
+var bestAI = createNetwork();
 //bestAI = createNetwork()
 var networkData = [bestAI];
 setInterval(Tick,1);
 
 function updateAi(){
+    genCoord()
     for(var i = 0; i < networkData.length; i++){
         networkData[i].delete()
     }
@@ -67,6 +82,7 @@ function updateAi(){
 }
 
 function createNetwork (baseNetwork) {
+
     var network = { neurons: [], x: randX, y: randY, rot: 0, v: 0, icon: null, gen: 0, score: 0, cleanGrid: [], dist: 0};
     for(var x = 0; x < cleanRes; x++){
         for(var y = 0; y < cleanRes; y++){
@@ -83,6 +99,7 @@ function createNetwork (baseNetwork) {
         }
         network.gen = (baseNetwork.gen ?? 0);
     }
+    
     return {
         setInput: function (input) {
             for(var i = 0; i < input.length; i++){
@@ -116,10 +133,10 @@ function createNetwork (baseNetwork) {
             }
             
             network.v = network.neurons[network.neurons.length - output_n].charge * max_speed;
-            network.v = Math.max(Math.min(network.v, max_speed), -max_speed);
+            network.v = Math.max(Math.min(network.v, max_speed), 0);
             network.rot += network.neurons[network.neurons.length - output_n + 1].charge * max_turn;
             
-            var moveDist = castRay(network.x, network.y, network.rot, network.v, size);
+            var moveDist = castWallRay(network.x, network.y, network.rot, network.v, size);
             network.x = Math.max(Math.min((network.x + Math.cos(network.rot) * moveDist), roomWidth - 30), 30);
             network.y = Math.max(Math.min((network.y + Math.sin(network.rot) * moveDist), roomHeight - 30), 30);
             network.dist = (network.dist ?? 0) + moveDist;
@@ -131,22 +148,18 @@ function createNetwork (baseNetwork) {
             network.icon.style.height = String(size * 2) + "px";
             
             var offset = 3.14159265 / 4;
-            var dist1 = castRay(network.x, network.y, network.rot + offset, sensorDist, size);
+            var dist1 = castWallRay(network.x, network.y, network.rot + offset, sensorDist, 5);
             var x1 = network.x + Math.cos(network.rot + offset) * dist1;
             var y1 = network.y + Math.sin(network.rot + offset) * dist1;
-            network.ray1.style.top =  String(y1 - size) + "px";
-            network.ray1.style.left = String(x1 - size) + "px";
-            network.ray1.style.width = String(size * 2) + "px";
-            network.ray1.style.height = String(size * 2) + "px";
+            network.ray1.style.top =  String(y1 - 5) + "px";
+            network.ray1.style.left = String(x1 - 5) + "px";
             network.ray1.style.backgroundColor = network.color;
 
-            var dist2 = castRay(network.x, network.y, network.rot - offset, sensorDist, size);
+            var dist2 = castWallRay(network.x, network.y, network.rot - offset, sensorDist, 5);
             var x2 = network.x + Math.cos(network.rot - offset) * dist2;
             var y2 = network.y + Math.sin(network.rot - offset) * dist2;
-            network.ray2.style.top =  String(y2 - size) + "px";
-            network.ray2.style.left = String(x2 - size) + "px";
-            network.ray2.style.width = String(size * 2) + "px";
-            network.ray2.style.height = String(size * 2) + "px";
+            network.ray2.style.top =  String(y2 - 5) + "px";
+            network.ray2.style.left = String(x2 - 5) + "px";
             network.ray2.style.backgroundColor = network.color;
         },
         delete: function(){
@@ -161,14 +174,12 @@ function createNetwork (baseNetwork) {
             //network.score +=  1 - Math.abs((Math.atan2((network.y - enemyData.y), (network.x - enemyData.x)) - network.rot) / Math.PI);
             //network.score += 1 - Math.sqrt(Math.pow(network.y - enemyData.y, 2) + Math.pow(network.x - enemyData.x, 2)) / Math.max(window.innerWidth, window.innerHeight);
             network.score = 0;
-            network.cleanGrid.forEach(s => network.score += s* cellSize);
+            network.cleanGrid.forEach(s => network.score += s * 2);
             network.score += network.dist;
         },
         network: network
     }
 }
-
-
 
 function createNeurons(network) {
 
@@ -222,9 +233,13 @@ function createIcon(network){
 }
 
 function Tick() {
+    uncleanTicks++;
+    ticks++;
+    time = Date.now();
+    tpsDiv.innerHTML = String(Math.round(ticks / ((time - startTime) / 1000))) + " tps";
+
     networkTick()
 }
-
 const cellOffsets = [
     { x: 0, y: 2 },
     { x: -1, y: 1 },
@@ -255,15 +270,16 @@ function networkTick() {
                 uncleanTicks = 0;
                 lastCleanedSquareTime = Date.now();
                 network.cleanGrid[floorX + floorY * cleanRes] = 1;
-
-                var cell = document.createElement('div');
-                cell.setAttribute('class', 'clean')
-                cell.setAttribute('id', String(floorX + floorY * cleanRes))
-                cell.style.position = "absolute";
-                cell.style.top = String(floorY * cellSize) + "px";
-                cell.style.left = String(floorX * cellSize) + "px";
-                cell.style.backgroundColor = network.color;
-                document.body.appendChild(cell)
+                if(showTrails){
+                    var cell = document.createElement('div');
+                    cell.setAttribute('class', 'clean')
+                    cell.setAttribute('id', String(floorX + floorY * cleanRes))
+                    cell.style.position = "absolute";
+                    cell.style.top = String(floorY * cellSize) + "px";
+                    cell.style.left = String(floorX * cellSize) + "px";
+                    cell.style.backgroundColor = network.color;
+                    document.body.appendChild(cell)
+                }
             }
         }
 
@@ -272,7 +288,7 @@ function networkTick() {
     }
 }
 
-function castRay(curX, curY, dir, dist, radius){
+function castWallRay(curX, curY, dir, dist, radius){
     var isNegative = false;
     if(dist < 0){
         isNegative = true;
@@ -302,28 +318,60 @@ function castRay(curX, curY, dir, dist, radius){
             // Check left
             y = -(rayFunc.a * left + rayFunc.c) / rayFunc.b;
             if(y > top && y <= bottom)
-                maxDist = Math.min(maxDist, getDist(curX, curY, left, y)-1);
+                maxDist = Math.min(maxDist, getDist(curX, curY, left, y)-.01);
 
             // Check right
             y = -(rayFunc.a * right + rayFunc.c) / rayFunc.b;
             if(y > top && y <= bottom)
-                maxDist = Math.min(maxDist, getDist(curX, curY, right, y)-1);
+                maxDist = Math.min(maxDist, getDist(curX, curY, right, y)-.01);
 
             // Check top
             x = -(rayFunc.b * top + rayFunc.c) / rayFunc.a;
             if(x > left && x <= right)
-                maxDist = Math.min(maxDist, getDist(curX, curY, x, top)-1);
+                maxDist = Math.min(maxDist, getDist(curX, curY, x, top)-.01);
             
             // Check bottom
             x = -(rayFunc.b * bottom + rayFunc.c) / rayFunc.a;
             if(x > left && x <= right)
-                maxDist = Math.min(maxDist, getDist(curX, curY, x, bottom)-1);
+                maxDist = Math.min(maxDist, getDist(curX, curY, x, bottom)-.01);
         }
     }
     if(isNegative)
         maxDist = -maxDist;
     return maxDist;
 }
+
+const cleanRayGranularity = 5
+
+function castCleanRay(curX, curY, dir, dist, radius){
+
+    var dx = Math.cos(dir);
+    var dy = Math.sin(dir);
+    var rayX = curX + dx * size * 2;
+    var rayY = curY + dy * size * 2;
+    var count = dist / cleanRayGranularity;
+
+    for(var i = 0; i < count; i++){
+
+        if(rayX > 0 && rayX < roomWidth && rayY > 0 && rayY < roomHeight){
+            var cellX = Math.floor(rayX / cellSize);
+            var cellY = Math.floor(rayY / cellSize);
+
+            if(cleanCells[cellX + cellY * cleanRes] == 1){
+                return i * cleanRayGranularity;
+            }
+            
+            rayX += dx * cleanRayGranularity;
+            rayY += dy * cleanRayGranularity;
+        }else{
+            break
+        }
+    }
+    return dist;
+
+}
+
+
 function getDist(x1, y1, x2, y2){
     var dx = x2 - x1;
     var dy = y2 - y1;
@@ -352,42 +400,16 @@ function getStandardForm(x1, y1, x2, y2) {
 }
 
 function calcInputs(network) {
-    var offset = 3.14159265 / 4;
-
-    var ray1 = 1 - castRay(network.x, network.y, network.rot + offset, sensorDist, size) / 200;
-    var ray2 = 1 - castRay(network.x, network.y, network.rot - offset, sensorDist, size) / 200;
-    
-    var dx = Math.cos(network.rot + Math.PI / 2)
-    var dy = Math.sin(network.rot + Math.PI / 2)
-    var frontX = Math.cos(network.rot) * (size + cellSize * 2)
-    var frontY = Math.sin(network.rot) * (size + cellSize * 2)
-    var point1 = {x: network.x + frontX, y: network.y + frontY};
-    var point2 = {x: network.x + frontX, y: network.y + frontY};
-    var cleaned1 = 0;
-    var cleaned2 = 0;
-
-    for(var i = 0; i < size / cellSize + 1; i++){
-
-        var floorX1 = Math.floor(point1.x / cellSize);
-        var floorY1 = Math.floor(point1.y / cellSize);
-
-        var floorX2 = Math.floor(point2.x / cellSize);
-        var floorY2 = Math.floor(point2.y / cellSize);
-
-        cleaned1 += network.cleanGrid[floorX1 + floorY1 * cleanRes];
-        cleaned2 += network.cleanGrid[floorX2 + floorY2 * cleanRes];
-
-        point1.x -= dx * cellSize;
-        point1.y -= dy * cellSize;
-
-        point2.x += dx * cellSize;
-        point2.y += dy * cellSize;
+    var dir = network.rot - fov / 2;
+    var inputs = [];
+    for(var w = 0; w < wallRayCount; w++){
+        inputs.push((castWallRay(network.x, network.y, dir + w * fov / wallRayCount, 200, 1) / 100) - 1)
     }
-    cleaned1 = cleaned1 / (size / cellSize + 1)
-    cleaned2 = cleaned2 / (size / cellSize + 1)
+    for(var c = 0; c < cleanRayCount; c++){
+        inputs.push((castWallRay(network.x, network.y, dir + c * fov / cleanRayCount, 200, 1) / 100) - 1)
+    }
 
-
-    return [ray1 * 2 - 1, ray2 * 2 - 1, cleaned1 * 2 - 1, cleaned2 * 2 - 1];
+    return inputs;
 }
 
 function genCoord() {
