@@ -1,8 +1,10 @@
-var showTrails = false;
+const isTraining = false;
 const cleanRes = 100;
 var bestScore = 0;
 const tpsDiv = document.getElementById("tps");
 const genDiv = document.getElementById("gen");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
 const bulkTrain = 30;
 const sensorDist = 200;
 const wallRayCount = 8;
@@ -17,16 +19,12 @@ var cleanCells = [];
 var lastCleanedSquareTime = Date.now();
 var randX = 0;
 var randY = 0;
-var enemyData = {x: 500, vx:0 , y: 500, vy:0};
-const enemy = document.getElementById("enemy");
-// const network = document.getElementById("network");
-// var networkData = {x: 0, y: 0, rot: 0, v: 0};
 var time = Date.now();
 var startTime = Date.now();
-const maxRunTime = 30000;
-const minRunTime = 0; // about 100 ticks per second
-const maxUncleanTicks = 100;
-const trainingRate = .25;
+const maxRunTime = 3000000;
+const minRunTime = 1000; // about 100 ticks per second
+const maxUncleanTicks = 800;
+const trainingRate = .2;
 var uncleanTicks = 0;
 var ticks = 0;
 const input_n = wallRayCount + cleanRayCount;
@@ -47,6 +45,13 @@ var colors = [
     "purple",
     "green"
 ];
+canvas.width = roomWidth;
+canvas.height = roomHeight;
+canvas.style.width = String(roomWidth)+"px";
+canvas.style.height = String(roomHeight)+"px";
+canvas.style.top = "0px";
+canvas.style.left = "0px";
+canvas.style.zIndex = -1;
 
 for(var i = 0; i < walls.length; i++){
     var rect = walls[i].getBoundingClientRect()
@@ -55,12 +60,21 @@ for(var i = 0; i < walls.length; i++){
 
 genCoord()
 var savedNetwork = localStorage.getItem("best");
-var bestAI = createNetwork();
-//bestAI = createNetwork()
-var networkData = [bestAI];
+var bestAI = !savedNetwork ? createNetwork(): createNetwork(JSON.parse(savedNetwork));
+//var bestAI = createNetwork()
+var networkData = [];
+if(bestAI)
+{
+    genDiv.innerHTML = "Generation "+String(bestAI.network.gen);
+    networkData.push(bestAI);
+}
 setInterval(Tick,1);
 
+if(isTraining)
+    newGen();
+
 function updateAi(){
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     genCoord()
     for(var i = 0; i < networkData.length; i++){
         networkData[i].delete()
@@ -78,8 +92,70 @@ function updateAi(){
     bestAI = createNetwork(JSON.parse(ai));
     bestAI.network.color = bestColor;
     networkData = [bestAI];
-    bestAI.reset()
+    bestAI.reset();
+    localStorage.setItem("best", JSON.stringify(bestAI.network));
     genDiv.innerHTML = "Generation "+String(bestAI.network.gen);
+}
+
+function newGen() {
+    lastCleanedSquareTime = Date.now();
+    startTime = Date.now();
+    uncleanTicks = 0;
+    ticks = 0;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (bestAI && bestAI.network.gen % 10 == 0){
+        genCoord();
+    }
+
+    if(networkData.length > 0){
+
+        var currentBestScore = -10000000;
+        var currentBestAi = bestAI;
+
+        for(var j = 0; j < networkData.length; j++){
+            networkData[j].calcScore()
+            var score = networkData[j].network.score;
+            if(currentBestScore < score){
+                currentBestScore = score;
+                currentBestAi = networkData[j];
+            }
+        }
+        bestScore = currentBestScore;
+        bestAI = currentBestAi;    
+
+        for(var n = 0; n < networkData.length; n++){
+            if(networkData[n] != bestAI){
+                networkData[n].delete();
+            }
+        }
+    }
+    networkData = [bestAI ?? createNetwork()];
+    bestAI.reset();
+    bestAI.network.gen += 1;
+    bestAI.network.color = bestColor;
+    for(var i = 1; i < bulkTrain; i++){
+        var newAI = bestAI.copy();
+        newAI.modifyWeights();
+        newAI.network.color = colors[i % colors.length];
+        networkData.push(newAI);
+    }
+    
+    var clean = document.getElementsByClassName('clean')
+    
+    while(clean.length > 0){
+
+        for(var i = 0; i < clean.length; i++){
+            clean[i].remove()
+        }
+        clean = document.getElementsByClassName('clean')
+    }
+    genDiv.innerHTML = "Generation "+String(bestAI.network.gen);
+    localStorage.setItem("best", JSON.stringify(bestAI.network));
+    if (bestAI.network.gen % 50 == 0){
+        //localStorage.setItem("gen4/generation-"+String(bestAI.network.gen), JSON.stringify(bestAI.network));
+        writeData(bestAI.network, "gen5/generation-" + bestAI.network.gen + ".json");
+    }
+
 }
 
 function createNetwork (baseNetwork) {
@@ -117,7 +193,6 @@ function createNetwork (baseNetwork) {
             network.rot = 0;
             network.score = 0;
             network.dist = 0;
-            network.gen += 1;
         },
         update: function(){
 
@@ -130,11 +205,11 @@ function createNetwork (baseNetwork) {
                 for(var e = 0; e < network.neurons[i].connections.length; e++){
                     network.neurons[i].charge += (network.neurons[(network.neurons[i].connections[e].ref)].charge * network.neurons[i].connections[e].wt);
                 }
-                network.neurons[i].charge = network.neurons[i].charge / network.neurons[i].connections.length;
+                network.neurons[i].charge = Math.max(Math.min(network.neurons[i].charge / network.neurons[i].connections.length, 1), -1);
             }
             
             network.v = network.neurons[network.neurons.length - output_n].charge * max_speed;
-            network.v = Math.max(Math.min(network.v, max_speed), 0);
+            network.v = Math.max(Math.min(network.v, max_speed), -max_speed);
             network.rot += network.neurons[network.neurons.length - output_n + 1].charge * max_turn;
             
             var moveDist = castWallRay(network.x, network.y, network.rot, network.v, size);
@@ -168,14 +243,19 @@ function createNetwork (baseNetwork) {
             network.ray1.remove()
             network.ray2.remove()
         },
+        modifyWeights: function() {
+            for(var i = input_n; i < network.neurons.length; i++){
+                for(var j = 0; j < network.neurons[i].connections.length; j++){
+                    network.neurons[i].connections[j].wt = network.neurons[i].connections[j].wt + (Math.random() * 2 - 1) * trainingRate;
+                }
+            }
+        },
         copy: function(){
             return(createNetwork(network))
         },
         calcScore: function(){
-            //network.score +=  1 - Math.abs((Math.atan2((network.y - enemyData.y), (network.x - enemyData.x)) - network.rot) / Math.PI);
-            //network.score += 1 - Math.sqrt(Math.pow(network.y - enemyData.y, 2) + Math.pow(network.x - enemyData.x, 2)) / Math.max(window.innerWidth, window.innerHeight);
             network.score = 0;
-            network.cleanGrid.forEach(s => network.score += s * 2);
+            network.cleanGrid.forEach(s => network.score += s * 4);
             network.score += network.dist;
         },
         network: network
@@ -188,17 +268,18 @@ function createNeurons(network) {
         network.neurons.push({charge: 0});
     }
 
+    var currentNeuron = [];
     for(var c = 0; c < n_colums; c++){
         for(var r = 1; r < n_rows + 1; r++){
             if(c > 0){
                 for(var i = 0; i < n_rows; i++){
-                    currentNeuron.push({ ref : (i + input_n + ((c - 1) * n_rows)), wt : 0})
+                    currentNeuron.push({ ref : (i + input_n + ((c - 1) * n_rows)), wt : Math.floor(((Math.random() * 2) - 1) * 100) / 100})
                 }
                 network.neurons.push({ connections: currentNeuron, charge: 0})
                 currentNeuron = []
             }else{
                 for(var i = 0; i < input_n; i ++){
-                    currentNeuron.push({ ref : i, wt : 0})
+                    currentNeuron.push({ ref : i, wt : Math.floor(((Math.random() * 2) - 1) * 100) / 100})
                 }
                 network.neurons.push({ connections: currentNeuron, charge: 0})
                 currentNeuron = []
@@ -238,9 +319,17 @@ function Tick() {
     ticks++;
     time = Date.now();
     tpsDiv.innerHTML = String(Math.round(ticks / ((time - startTime) / 1000))) + " tps";
-
+    if(isTraining && ticks > minRunTime){
+        if(ticks > maxRunTime) {
+            newGen();
+        }
+        else if((uncleanTicks) > maxUncleanTicks) {
+            newGen();
+        }
+    }
     networkTick()
 }
+
 const cellOffsets = [
     { x: 0, y: 2 },
     { x: -1, y: 1 },
@@ -271,16 +360,12 @@ function networkTick() {
                 uncleanTicks = 0;
                 lastCleanedSquareTime = Date.now();
                 network.cleanGrid[floorX + floorY * cleanRes] = 1;
-                if(showTrails){
-                    var cell = document.createElement('div');
-                    cell.setAttribute('class', 'clean')
-                    cell.setAttribute('id', String(floorX + floorY * cleanRes))
-                    cell.style.position = "absolute";
-                    cell.style.top = String(floorY * cellSize) + "px";
-                    cell.style.left = String(floorX * cellSize) + "px";
-                    cell.style.backgroundColor = network.color;
-                    document.body.appendChild(cell)
-                }
+
+                ctx.save();
+                ctx.fillStyle = network.color;
+                ctx.globalAlpha = .2;
+                ctx.fillRect(floorX * cellSize, floorY * cellSize,cellSize,cellSize);
+                ctx.restore();
             }
         }
 
@@ -319,22 +404,22 @@ function castWallRay(curX, curY, dir, dist, radius){
             // Check left
             y = -(rayFunc.a * left + rayFunc.c) / rayFunc.b;
             if(y > top && y <= bottom)
-                maxDist = Math.min(maxDist, getDist(curX, curY, left, y)-.01);
+                maxDist = Math.max(Math.min(maxDist, getDist(curX, curY, left, y)-.01), 0);
 
             // Check right
             y = -(rayFunc.a * right + rayFunc.c) / rayFunc.b;
             if(y > top && y <= bottom)
-                maxDist = Math.min(maxDist, getDist(curX, curY, right, y)-.01);
+                maxDist = Math.max(Math.min(maxDist, getDist(curX, curY, right, y)-.01), 0);
 
             // Check top
             x = -(rayFunc.b * top + rayFunc.c) / rayFunc.a;
             if(x > left && x <= right)
-                maxDist = Math.min(maxDist, getDist(curX, curY, x, top)-.01);
+                maxDist = Math.max(Math.min(maxDist, getDist(curX, curY, x, top)-.01), 0);
             
             // Check bottom
             x = -(rayFunc.b * bottom + rayFunc.c) / rayFunc.a;
             if(x > left && x <= right)
-                maxDist = Math.min(maxDist, getDist(curX, curY, x, bottom)-.01);
+                maxDist = Math.max(Math.min(maxDist, getDist(curX, curY, x, bottom)-.01), 0);
         }
     }
     if(isNegative)
@@ -407,13 +492,16 @@ function calcInputs(network) {
         inputs.push((castWallRay(network.x, network.y, dir + w * fov / wallRayCount, 200, 1) / 100) - 1)
     }
     for(var c = 0; c < cleanRayCount; c++){
-        inputs.push((castWallRay(network.x, network.y, dir + c * fov / cleanRayCount, 200, 1) / 100) - 1)
+        inputs.push((castCleanRay(network.x, network.y, dir + c * fov / cleanRayCount, 200, 1) / 100) - 1)
     }
 
     return inputs;
 }
 
 function genCoord() {
+    //randX = 969
+    //randY = 447
+    //return;
     var isValid = false;
     while(!isValid){
         
@@ -431,4 +519,24 @@ function genCoord() {
             };
         }
     }
+}
+
+async function writeData(Obj, fileName){
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("PUT", `https://api.github.com/repos/StonksPerson/Science-fair/contents/${fileName}` , true);
+    xhr.setRequestHeader("Accept","application/vnd.github+json")
+    xhr.setRequestHeader("Authorization", "Bearer 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")
+    xhr.setRequestHeader("X-GitHub-Api-Version", "2022-11-28")
+    xhr.send(JSON.stringify({
+        message: `Added Data ${fileName}`,
+        committer: {
+          name: 'Connor',
+          email: 'andersonconnor09@gmail.com'
+        },
+        content: btoa(JSON.stringify(Obj)),
+
+      }
+    ));
+
 }

@@ -7,11 +7,9 @@
     <body>
         <input type="text" id="baseAi" placeholder="Enter Ai JSON" style="margin-left: 1010px;">
         <button onclick="updateAi()">Submit</button>
-        
+
         <h1 id="tps" style="margin-left: 1020px;">ticks</h1>
         <h1 id="gen" style="margin-left: 1020px;">gen</h1>
-
-        <div id="enemy"></div>
         
         <div class="walls" style="left: 0px; top: 0px ; width: 1000px; height: 10px;"></div>
         <div class="walls" style="left: 0px; top: 0px; width: 10px; height: 1000px;"></div>
@@ -23,8 +21,8 @@
         <div class="walls" style="left: 780px; top: 330px; width: 10px; height: 300px;"></div>
 
         <div id="cleaned">
-
         </div>
+        <canvas id="canvas" style="position:absolute;" width="1000" height="1000"></div>
     </body>
     <footer>
         <script src="Neural.js"></script>
