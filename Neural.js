@@ -526,7 +526,7 @@ async function writeData(Obj, fileName){
     var xhr = new XMLHttpRequest();
     xhr.open("PUT", `https://api.github.com/repos/StonksPerson/Science-fair/contents/${fileName}` , true);
     xhr.setRequestHeader("Accept","application/vnd.github+json")
-    xhr.setRequestHeader("Authorization", "Bearer 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")
+    xhr.setRequestHeader("Authorization", "Bearer <PERSONAL_TOKEN>")
     xhr.setRequestHeader("X-GitHub-Api-Version", "2022-11-28")
     xhr.send(JSON.stringify({
         message: `Added Data ${fileName}`,
